@@ -11,7 +11,7 @@ from nose.tools import *
 
 call_count = defaultdict(int)
 db_name = uuid.uuid1().hex
-db_conn = pymongo.Connection()
+db_conn = pymongo.MongoClient()
 
 
 def tearDown():
@@ -43,8 +43,3 @@ def test_memoize_capped():
     time.sleep(0.1)
     ok_(memoized_func_capped())
     eq_(1, call_count['memoized_func_capped'])
-
-    col_options = db_conn[db_name]['capped_col'].options()
-    eq_(True, col_options['capped'])
-    eq_(1000.0, col_options['size'])
-    eq_(10, col_options['max'])

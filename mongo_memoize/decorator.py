@@ -48,7 +48,7 @@ def memoize(
         key_generator = PickleMD5KeyGenerator()
 
     def decorator(func):
-        db_conn = pymongo.Connection(host, port, *connection_options)[db_name]
+        db_conn = pymongo.MongoClient(host, port, *connection_options)[db_name]
 
         if collection_name:
             col_name = collection_name

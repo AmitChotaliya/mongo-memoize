@@ -11,7 +11,7 @@ from serializer import PickleSerializer
 def memoize(
     db_name='mongo_memoize', host='localhost', port=27017, collection_name=None,
     prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
-    connection_options={}, key_generator=None, serializer=None
+    connection_options={}, key_generator=None, serializer=None, verbose=False
 ):
     """A decorator that caches results of the function in MongoDB.
 
@@ -75,7 +75,12 @@ def memoize(
 
             cached_obj = cache_col.find_one(dict(key=cache_key))
             if cached_obj:
+                if verbose:
+                    print "Cache hit: {} ___ {}".format(args, kwargs)
                 return serializer.deserialize(cached_obj['result'])
+
+            if verbose:
+                print "Cache miss: {} ___ {}".format(args, kwargs)
 
             ret = func(*args, **kwargs)
             cache_col.update(
@@ -83,6 +88,8 @@ def memoize(
                 {
                     '$set': {
                         'result': serializer.serialize(ret),
+                        'args': str(args),
+                        'kwargs': str(kwargs)
                     }
                 },
                 upsert=True

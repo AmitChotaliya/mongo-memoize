@@ -76,7 +76,7 @@ def memoize(
             cached_obj = cache_col.find_one(dict(key=cache_key))
             if cached_obj:
                 if verbose:
-                    print "Cache hit: {} ___ {}".format(args, kwargs)
+                    print "Cache hit: {} ___ {}: {}".format(args, kwargs, cache_key)
                 return serializer.deserialize(cached_obj['result'])
 
             if verbose:

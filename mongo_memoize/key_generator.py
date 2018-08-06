@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import cPickle as pickle
+import sys
 import hashlib
+
+if sys.version_info[0] == 2:
+    import cPickle as pickle
+else:
+    import pickle
 
 
 class PickleMD5KeyGenerator(object):
@@ -14,6 +19,6 @@ class PickleMD5KeyGenerator(object):
         self._protocol = protocol
 
     def __call__(self, args, kwargs):
-        pickled_args = pickle.dumps((args, sorted(kwargs.iteritems())),
+        pickled_args = pickle.dumps((args, sorted(kwargs.items())),
                                protocol=self._protocol)
         return hashlib.md5(pickled_args).hexdigest()

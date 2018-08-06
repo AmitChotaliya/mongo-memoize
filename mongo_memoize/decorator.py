@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import absolute_import, print_function
+
 import pymongo
 from functools import wraps
 import hashlib
 
-from key_generator import PickleMD5KeyGenerator
-from serializer import PickleSerializer
+from mongo_memoize.key_generator import PickleMD5KeyGenerator
+from mongo_memoize.serializer import PickleSerializer
 
 
 def memoize(
@@ -53,7 +55,8 @@ def memoize(
         if collection_name:
             col_name = collection_name
         else:
-            col_name = '%s_%s_%s' % (prefix, func.__name__, hashlib.md5(func.__module__).hexdigest())
+            func_module_encoded = func.__module__.encode('utf-8')
+            col_name = '%s_%s_%s' % (prefix, func.__name__, hashlib.md5(func_module_encoded).hexdigest())
 
         if capped:
             if col_name not in db_conn.collection_names():
@@ -76,11 +79,11 @@ def memoize(
             cached_obj = cache_col.find_one(dict(key=cache_key))
             if cached_obj:
                 if verbose:
-                    print "Cache hit: {} ___ {}: {}".format(args, kwargs, cache_key)
+                    print("Cache hit: {} ___ {}".format(args, kwargs))
                 return serializer.deserialize(cached_obj['result'])
 
             if verbose:
-                print "Cache miss: {} ___ {}".format(args, kwargs)
+                print("Cache miss: {} ___ {}".format(args, kwargs))
 
             ret = func(*args, **kwargs)
             cache_col.update(

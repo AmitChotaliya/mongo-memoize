@@ -77,6 +77,27 @@ class Memoizer(object):
         cache_col.ensure_index('key', unique=True)
         return cache_col
 
+    def batch_find_keys(self, func, arg_list=None, kwarg_list=None):
+        """Check lists of args and kwargs to see if they've been calculated."""
+
+        if arg_list is None and kwarg_list is None:
+            return list()
+
+        if arg_list is None:
+            arg_list = [() for _ in kwarg_list]
+
+        if kwarg_list is None:
+            if len(arg_list) and isinstance(arg_list[0], dict):
+                raise ValueError("Dictionary provided in arg_list.  If only kwarg_list is to be provide it, "
+                                 "provide it as a named argument.")
+            kwarg_list = [dict() for _ in arg_list]
+
+        key_list = [self.key_generator(args, kwargs) for args, kwargs in zip(arg_list, kwarg_list)]
+        cache_col = self.initialize_col(func)
+        key_found = [bool(cache_col.find_one(dict(key=cache_key))) for cache_key in key_list]
+        self.disconnect()
+        return key_found
+
     def memoize(self):
 
         """A decorator that caches results of the function in MongoDB.

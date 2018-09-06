@@ -37,10 +37,12 @@ class Memoizer(object):
         self.verbose = verbose
 
         self.db_conn = None
+        self.db = None
         self.is_connected = False
 
     def connect(self):
-        self.db_conn = pymongo.MongoClient(self.host, self.port, *self.connection_options[self.db_name])
+        self.db_conn = pymongo.MongoClient(self.host, self.port, *self.connection_options)
+        self.db = self.db_conn[self.db_name]
         self.is_connected = True
 
     def disconnect(self):
@@ -63,7 +65,7 @@ class Memoizer(object):
         col_name = self.get_col_name(func)
 
         if self.capped:
-            if col_name not in self.db_conn.collection_names():
+            if col_name not in self.db.collection_names():
                 assert self.capped_size > 0, 'The size of the capped collection is required.'
 
                 capped_args = dict()
@@ -71,9 +73,9 @@ class Memoizer(object):
                 if self.capped_max:
                     capped_args['max'] = self.capped_max
 
-                self.db_conn.create_collection(col_name, capped=True, **capped_args)
+                self.db.create_collection(col_name, capped=True, **capped_args)
 
-        cache_col = self.db_conn[col_name]
+        cache_col = self.db[col_name]
         cache_col.ensure_index('key', unique=True)
         return cache_col
 
@@ -176,7 +178,7 @@ class Memoizer(object):
         self.disconnect()
         return key_found
 
-
+NEED TO REWRITE THIS SO THAT THE FUNCTION CAN BE PICKLED.  DB CONNECTION ARGS MUST BE PASSED AND THE CONNECTION MUST BE MADE IN THE FUNCTION.
 def batch_wrapper(decorator, func):
     def wrapped(arg):
         args, kwargs = arg
@@ -195,7 +197,7 @@ def batch_process(memoizer, func, arg_list=None, kwarg_list=None, processes=1):
     _logger.info("Running script with {} processes.".format(processes))
     _logger.debug("Checking for existing keys.")
     key_list = memoizer.get_key_list(arg_list, kwarg_list)
-    key_found = memoizer.batch_find_keys(func, key_list)
+    key_found = memoizer.batch_check_keys(func, key_list)
     _logger.info("Found {} out of {} keys in database.".format(sum(key_found), len(key_found)))
 
     _logger.debug("Creating multiprocessing.Pool.")
@@ -332,80 +334,3 @@ def memoize(
         return wrapped_func
 
     return decorator
-
-
-#
-# def memoize(
-#         db_name='mongo_memoize', host='localhost', port=27017, collection_name=None,
-#         prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
-#         connection_options={}, key_generator=None, serializer=None, verbose=False
-# ):
-#     """A decorator that caches results of the function in MongoDB.
-#
-#     Usage:
-#
-#         >>> from mongo_memoize import memoize
-#         >>> @memoize()
-#         ... def some_function():
-#         ...     pass
-#         ...
-#
-#     :param str db_name: MongoDB database name.
-#     :param str host: MongoDB host name.
-#     :param int port: MongoDB port.
-#     :param str collection_name: MongoDB collection name. If not specified, the
-#         collection name is generated automatically using the prefix, the module
-#         name, and the function name.
-#     :param str prefix: Prefix of the MongoDB collection name. This argument is
-#         only valid when the collection_name argument is not specified.
-#     :param bool capped: Whether to use the capped collection.
-#     :param int capped_size: The maximum size of the capped collection in bytes.
-#     :param int capped_max: The maximum number of items in the capped collection.
-#     :param dict connection_options: Additional parameters for establishing
-#         MongoDB connection.
-#     :param key_generator: Key generator instance.
-#         :class:`PickleMD5KeyGenerator <mongo_memoize.PickleMD5KeyGenerator>` is used by default.
-#     :param serializer: Serializer instance.
-#         :class:`PickleSerializer <mongo_memoize.PickleSerializer>` is used by default.
-#     """
-#
-#     def decorator(func):
-#
-#         memoizer = Memoizer(db_name, host, port, collection_name,
-#                             prefix, capped, capped_size, capped_max,
-#                             connection_options, key_generator, serializer, verbose)
-#
-#         memoizer.connect()
-#         cache_col = memoizer.initialize_col(func)
-#
-#         @wraps(func)
-#         def wrapped_func(*args, **kwargs):
-#             cache_key = memoizer.key_generator(args, kwargs)
-#
-#             cached_obj = cache_col.find_one(dict(key=cache_key))
-#             if cached_obj:
-#                 if verbose:
-#                     print("Cache hit: {} ___ {}".format(args, kwargs))
-#                 return memoizer.serializer.deserialize(cached_obj['result'])
-#
-#             if verbose:
-#                 print("Cache miss: {} ___ {}".format(args, kwargs))
-#
-#             ret = func(*args, **kwargs)
-#             cache_col.update(
-#                 {'key': cache_key},
-#                 {
-#                     '$set': {
-#                         'result': serializer.serialize(ret),
-#                         'args': str(args),
-#                         'kwargs': str(kwargs)
-#                     }
-#                 },
-#                 upsert=True
-#             )
-#
-#             return ret
-#
-#         return wrapped_func
-#
-#     return decorator

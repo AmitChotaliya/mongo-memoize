@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mongo-memoize',
-    version='0.0.3',
+    version='0.0.5',
     description='A Python decorator library for caching function results in MongoDB',
     long_description=open('README.rst').read(),
     author='Ikuya Yamada',
@@ -29,5 +29,5 @@ setup(
         'nose',
         'mock',
     ],
-    test_suite = 'nose.collector'
+    test_suite='nose.collector'
 )

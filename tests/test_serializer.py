@@ -21,7 +21,7 @@ def test_pickle_serializer():
     obj = dict(a=1, b=2)
 
     serialized = ins.serialize(obj)
-    ok_(isinstance(serialized, basestring))
+    ok_(isinstance(serialized, (bytes, bytearray)))
 
     deserialized = ins.deserialize(serialized)
     eq_(obj, deserialized)

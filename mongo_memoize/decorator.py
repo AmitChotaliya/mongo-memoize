@@ -58,18 +58,10 @@ class Memoizer(object):
             except AttributeError:
                 self.db_conn = None
             self.is_connected = False
-
-    def get_col_name(self, func):
-        if self.collection_name:
-            col_name = self.collection_name
-        else:
-            func_module_encoded = func.__module__.encode('utf-8')
-            col_name = '%s_%s_%s' % (self.prefix, func.__name__, hashlib.md5(
-                func_module_encoded).hexdigest())
-        return col_name
+    
 
     def initialize_col(self, func):
-        col_name = self.get_col_name(func)
+        col_name = self.collection_name
 
         if self.capped:
             if col_name not in self.db.list_collection_names():
@@ -104,7 +96,7 @@ class Memoizer(object):
 
 
 def memoize(
-        db_name='mongo_memoize', mongo_uri=None, mongo_client_cb=None, collection_name=None,
+        db_name='mongo_memoize', mongo_uri=None, mongo_client_cb=None, collection_name="cache",
         prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
         connection_options={}, key_generator=None, serializer=None, verbose=False, timeout=0
 ):

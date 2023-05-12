@@ -12,23 +12,27 @@ from nose.tools import *
 call_count = defaultdict(int)
 db_name = uuid.uuid1().hex
 db_conn = pymongo.MongoClient()
+mongo_uri = "mongodb://localhost"
 
+def get_client():
+    return pymongo.MongoClient(mongo_uri)
 
 def setup():
     db_conn.drop_database(db_name)
 
 
 def tearDown():
-    db_conn.drop_database(db_name)
+    pass
+    #db_conn.drop_database(db_name)
 
 
-@memoize(db_name=db_name)
+@memoize(db_name=db_name, mongo_uri=mongo_uri)
 def memoized_func():
     call_count['memoized_func'] += 1
     return True
 
 
-@memoize(mongo_client=db_conn, db_name=db_name)
+@memoize(mongo_client_cb=get_client, db_name=db_name)
 def memoized_func_with_db_conn():
     call_count['memoized_func_with_db_conn'] += 1
     return True

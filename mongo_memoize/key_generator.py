@@ -18,7 +18,7 @@ class PickleMD5KeyGenerator(object):
     def __init__(self, protocol=-1):
         self._protocol = protocol
 
-    def __call__(self, args, kwargs):
-        pickled_args = pickle.dumps((args, sorted(kwargs.items())),
+    def __call__(self, function_name, args, kwargs):
+        pickled_args = pickle.dumps((function_name, args, sorted(kwargs.items())),
                                protocol=self._protocol)
         return hashlib.md5(pickled_args).hexdigest()

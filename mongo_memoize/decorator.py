@@ -12,9 +12,9 @@ from mongo_memoize.serializer import PickleSerializer
 
 class Memoizer(object):
 
-    def __init__(self, db_name='mongo_memoize', mongo_client=None, host='localhost', port=27017, collection_name=None,
+    def __init__(self, db_name='mongo_memoize', mongo_client_cb=None, mongo_uri=None, collection_name=None,
                  prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
-                 connection_options={}, key_generator=None, serializer=None, verbose=False):
+                 connection_options={}, key_generator=None, serializer=None, verbose=False, timeout=0):
 
         self.serializer = serializer
         if not self.serializer:
@@ -24,8 +24,7 @@ class Memoizer(object):
         if not self.key_generator:
             self.key_generator = PickleMD5KeyGenerator()
 
-        self.host = host
-        self.port = port
+        self.mongo_uri = mongo_uri
         self.connection_options = connection_options
         self.db_name = db_name
 
@@ -35,16 +34,20 @@ class Memoizer(object):
         self.capped_size = capped_size
         self.capped_max = capped_max
         self.verbose = verbose
+        self.timeout = timeout
 
-        self.db_conn = mongo_client
+        self.mongo_client_cb = mongo_client_cb
         self.db = None
         self.is_connected = False
-        self.external_db_conn = True if mongo_client else False
+        self.external_db_conn = True if mongo_client_cb else False
 
     def connect(self):
-        if not self.external_db_conn:
+        if self.external_db_conn:
+            self.db_conn = self.mongo_client_cb()
+        else:
             self.db_conn = pymongo.MongoClient(
-                self.host, self.port, *self.connection_options)
+                self.mongo_uri, *self.connection_options)
+        print(self.db_conn)
         self.db = self.db_conn[self.db_name]
         self.is_connected = True
 
@@ -65,7 +68,7 @@ class Memoizer(object):
                 func_module_encoded).hexdigest())
         return col_name
 
-    def initialize_col(self, func):        
+    def initialize_col(self, func):
         col_name = self.get_col_name(func)
 
         if self.capped:
@@ -83,73 +86,6 @@ class Memoizer(object):
         cache_col.create_index('key', unique=True)
         return cache_col
 
-    def memoize(self):
-        """A decorator that caches results of the function in MongoDB.
-
-        Usage:
-
-            >>> from mongo_memoize import memoize
-            >>> @memoize()
-            ... def some_function():
-            ...     pass
-            ...
-
-        :param str db_name: MongoDB database name.
-        :param str host: MongoDB host name.
-        :param int port: MongoDB port.
-        :param str collection_name: MongoDB collection name. If not specified, the
-            collection name is generated automatically using the prefix, the module
-            name, and the function name.
-        :param str prefix: Prefix of the MongoDB collection name. This argument is
-            only valid when the collection_name argument is not specified.
-        :param bool capped: Whether to use the capped collection.
-        :param int capped_size: The maximum size of the capped collection in bytes.
-        :param int capped_max: The maximum number of items in the capped collection.
-        :param dict connection_options: Additional parameters for establishing
-            MongoDB connection.
-        :param key_generator: Key generator instance.
-            :class:`PickleMD5KeyGenerator <mongo_memoize.PickleMD5KeyGenerator>` is used by default.
-        :param serializer: Serializer instance.
-            :class:`PickleSerializer <mongo_memoize.PickleSerializer>` is used by default.
-        """
-
-        def decorator(func):
-            
-            @wraps(func)
-            def wrapped_func(*args, **kwargs):                
-                if not self.is_connected:
-                    self.connect()
-                cache_col = self.initialize_col(func)
-                cache_key = self.key_generator(args, kwargs)
-
-                cached_obj = cache_col.find_one(dict(key=cache_key))
-                if cached_obj:
-                    if self.verbose:
-                        print("Cache hit: {} ___ {}".format(args, kwargs))
-                    return self.serializer.deserialize(cached_obj['result'])
-
-                if self.verbose:
-                    print("Cache miss: {} ___ {}".format(args, kwargs))
-
-                ret = func(*args, **kwargs)
-                cache_col.update(
-                    {'key': cache_key},
-                    {
-                        '$set': {
-                            'result': self.serializer.serialize(ret),
-                            'args': str(args),
-                            'kwargs': str(kwargs)
-                        }
-                    },
-                    upsert=True
-                )
-
-                return ret
-
-            return wrapped_func
-
-        return decorator
-
     @staticmethod
     def normalize_args_list(arg_list, kwarg_list):
         if arg_list is None and kwarg_list is None:
@@ -166,25 +102,11 @@ class Memoizer(object):
 
         return arg_list, kwarg_list
 
-    def get_key_list(self, arg_list, kwarg_list):
-        arg_list, kwarg_list = self.normalize_args_list(arg_list, kwarg_list)
-        key_list = [self.key_generator(args, kwargs)
-                    for args, kwargs in zip(arg_list, kwarg_list)]
-        return key_list
-
-    def batch_check_keys(self, func, key_list):
-        """Check lists of args and kwargs to see if they've been calculated."""
-        cache_col = self.initialize_col(func)
-        key_found = [bool(cache_col.find_one(dict(key=cache_key)))
-                     for cache_key in key_list]
-        self.disconnect()
-        return key_found
-
 
 def memoize(
-        db_name='mongo_memoize', mongo_client=None, host='localhost', port=27017, collection_name=None,
+        db_name='mongo_memoize', mongo_uri=None, mongo_client_cb=None, collection_name=None,
         prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
-        connection_options={}, key_generator=None, serializer=None, verbose=False
+        connection_options={}, key_generator=None, serializer=None, verbose=False, timeout=0
 ):
     """A decorator that caches results of the function in MongoDB.
 
@@ -197,9 +119,8 @@ def memoize(
         ...
 
     :param str db_name: MongoDB database name.
-    :param MongoClient mongo_client: MongoDB database connection as PyMongo Client
-    :param str host: MongoDB host name.
-    :param int port: MongoDB port.
+    :param func mongo_client_cb: A function which returns MongoDB database connection as PyMongo Client    
+    :param str mongo_uri: Mongodb Connection URI
     :param str collection_name: MongoDB collection name. If not specified, the
         collection name is generated automatically using the prefix, the module
         name, and the function name.
@@ -218,17 +139,18 @@ def memoize(
 
     def decorator(func):
 
-        memoizer = Memoizer(db_name, mongo_client, host, port, collection_name,
-                            prefix, capped, capped_size, capped_max,
-                            connection_options, key_generator, serializer, verbose)
+        memoizer = Memoizer(db_name, mongo_client_cb=mongo_client_cb, mongo_uri=mongo_uri, collection_name=collection_name,
+                            prefix=prefix, capped=capped, capped_size=capped_size, capped_max=capped_max,
+                            connection_options=connection_options, key_generator=key_generator,
+                            serializer=serializer, verbose=verbose, timeout=timeout)
 
         memoizer.connect()
-        cache_col = memoizer.initialize_col(func)
 
         @wraps(func)
         def wrapped_func(*args, **kwargs):
-            cache_key = memoizer.key_generator(args, kwargs)
-
+            cache_col = memoizer.initialize_col(func)
+            cache_key = memoizer.key_generator(
+                func.__module__.encode('utf-8'), args, kwargs)
             cached_obj = cache_col.find_one(dict(key=cache_key))
             if cached_obj:
                 if verbose:

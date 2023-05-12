@@ -46,8 +46,7 @@ class Memoizer(object):
             self.db_conn = self.mongo_client_cb()
         else:
             self.db_conn = pymongo.MongoClient(
-                self.mongo_uri, *self.connection_options)
-        print(self.db_conn)
+                self.mongo_uri, *self.connection_options)        
         self.db = self.db_conn[self.db_name]
         self.is_connected = True
 

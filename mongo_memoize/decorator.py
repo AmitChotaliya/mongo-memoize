@@ -65,8 +65,7 @@ class Memoizer(object):
                 func_module_encoded).hexdigest())
         return col_name
 
-    def initialize_col(self, func):
-        self.connect()
+    def initialize_col(self, func):        
         col_name = self.get_col_name(func)
 
         if self.capped:
@@ -115,14 +114,12 @@ class Memoizer(object):
         """
 
         def decorator(func):
-
-            cache_col = self.initialize_col(func)
-
+            
             @wraps(func)
-            def wrapped_func(*args, **kwargs):
+            def wrapped_func(*args, **kwargs):                
                 if not self.is_connected:
                     self.connect()
-
+                cache_col = self.initialize_col(func)
                 cache_key = self.key_generator(args, kwargs)
 
                 cached_obj = cache_col.find_one(dict(key=cache_key))

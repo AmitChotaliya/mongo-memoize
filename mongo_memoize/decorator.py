@@ -143,11 +143,11 @@ def memoize(
                             prefix=prefix, capped=capped, capped_size=capped_size, capped_max=capped_max,
                             connection_options=connection_options, key_generator=key_generator,
                             serializer=serializer, verbose=verbose, timeout=timeout)
-
-        memoizer.connect()
+        
 
         @wraps(func)
         def wrapped_func(*args, **kwargs):
+            memoizer.connect()
             cache_col = memoizer.initialize_col(func)
             cache_key = memoizer.key_generator(
                 func.__module__.encode('utf-8'), args, kwargs)

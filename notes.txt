@@ -1,0 +1,7 @@
+Should generator key be different if the args order is diferent?
+Can not generate same key in test
+timeout : how long to wait arg is not implemented
+Max-age does not work with capped value because mongodb does't support it.
+
+why store agrs and kwargs in cache results
+Implement a function to delete caches of give function and class

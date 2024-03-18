@@ -1,7 +1,9 @@
 dist
 .venv
+venv
 *.egg-info
 *.pyc
 .tox
 *.sublime-*
 docs/_build
+notes.txt

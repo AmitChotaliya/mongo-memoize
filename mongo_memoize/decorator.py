@@ -75,7 +75,7 @@ class Memoizer(object):
 
         cache_col = self.db[col_name]
         cache_col.create_index('key', unique=True)
-        
+
         if self.max_age is not None:
             # if the document db supports it or not.
             cache_col.create_index('expiresAt', expireAfterSeconds=0)
@@ -158,13 +158,14 @@ def memoize(
                 print("Cache miss: {} ___ {}".format(args, kwargs))
 
             ret = func(*args, **kwargs)
-            
+
             resultSet = {
                 'result': memoizer.serializer.serialize(ret),
+                'qualname': str(func.__qualname__),
                 'args': str(args),
                 'kwargs': str(kwargs),
             }
-            
+
             if max_age is not None:
                 resultSet['expiresAt'] = datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=max_age)
 
@@ -175,6 +176,8 @@ def memoize(
                     },
                     upsert=True
                 )
+
+            memoizer.disconnect()
 
             return ret
 

@@ -1,6 +1,4 @@
 import unittest
-import pickle
-import hashlib
 from mongo_memoize import PickleMD5KeyGenerator
 
 class TestPickleMD5KeyGenerator(unittest.TestCase):

@@ -4,8 +4,7 @@ import unittest
 from collections import defaultdict
 import time
 
-
-MONGO_URI = "mongodb://127.0.0.1:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.1.5"
+MONGO_URI = "mongodb://localhost"
 DB_NAME = 'test'
 call_count = defaultdict(int)
 

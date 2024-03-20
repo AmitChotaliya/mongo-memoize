@@ -4,16 +4,16 @@ from __future__ import absolute_import, print_function
 
 import pymongo
 from functools import wraps
-import hashlib
 
 from mongo_memoize.key_generator import PickleMD5KeyGenerator
 from mongo_memoize.serializer import PickleSerializer
 
+import datetime
 
 class Memoizer(object):
 
     def __init__(self, db_name='mongo_memoize', mongo_client_cb=None, mongo_uri=None, collection_name=None,
-                 prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
+                 prefix='memoize', capped=False, capped_size=100000000, capped_max=None, max_age=None,
                  connection_options={}, key_generator=None, serializer=None, verbose=False, timeout=0):
 
         self.serializer = serializer
@@ -35,6 +35,7 @@ class Memoizer(object):
         self.capped_max = capped_max
         self.verbose = verbose
         self.timeout = timeout
+        self.max_age = max_age
 
         self.mongo_client_cb = mongo_client_cb
         self.db = None
@@ -57,7 +58,6 @@ class Memoizer(object):
             except AttributeError:
                 self.db_conn = None
             self.is_connected = False
-    
 
     def initialize_col(self, func):
         col_name = self.collection_name
@@ -75,6 +75,11 @@ class Memoizer(object):
 
         cache_col = self.db[col_name]
         cache_col.create_index('key', unique=True)
+
+        if self.max_age is not None:
+            # if the document db supports it or not.
+            cache_col.create_index('expiresAt', expireAfterSeconds=0)
+
         return cache_col
 
     @staticmethod
@@ -96,7 +101,7 @@ class Memoizer(object):
 
 def memoize(
         db_name='mongo_memoize', mongo_uri=None, mongo_client_cb=None, collection_name="cache",
-        prefix='memoize', capped=False, capped_size=100000000, capped_max=None,
+        prefix='memoize', capped=False, capped_size=100000000, capped_max=None, max_age=None,
         connection_options={}, key_generator=None, serializer=None, verbose=False, timeout=0
 ):
     """A decorator that caches results of the function in MongoDB.
@@ -120,6 +125,7 @@ def memoize(
     :param bool capped: Whether to use the capped collection.
     :param int capped_size: The maximum size of the capped collection in bytes.
     :param int capped_max: The maximum number of items in the capped collection.
+    :param max_age: The maximum age of the cached item in seconds.
     :param dict connection_options: Additional parameters for establishing
         MongoDB connection.
     :param key_generator: Key generator instance.
@@ -131,7 +137,7 @@ def memoize(
     def decorator(func):
 
         memoizer = Memoizer(db_name, mongo_client_cb=mongo_client_cb, mongo_uri=mongo_uri, collection_name=collection_name,
-                            prefix=prefix, capped=capped, capped_size=capped_size, capped_max=capped_max,
+                            prefix=prefix, capped=capped, capped_size=capped_size, capped_max=capped_max, max_age=max_age,
                             connection_options=connection_options, key_generator=key_generator,
                             serializer=serializer, verbose=verbose, timeout=timeout)
         
@@ -152,17 +158,26 @@ def memoize(
                 print("Cache miss: {} ___ {}".format(args, kwargs))
 
             ret = func(*args, **kwargs)
+
+            resultSet = {
+                'result': memoizer.serializer.serialize(ret),
+                'qualname': str(func.__qualname__),
+                'args': str(args),
+                'kwargs': str(kwargs),
+            }
+
+            if max_age is not None:
+                resultSet['expiresAt'] = datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(seconds=max_age)
+
             cache_col.update_one(
-                {'key': cache_key},
-                {
-                    '$set': {
-                        'result': memoizer.serializer.serialize(ret),
-                        'args': str(args),
-                        'kwargs': str(kwargs)
-                    }
-                },
-                upsert=True
-            )
+                    {'key': cache_key},
+                    {
+                        '$set': resultSet
+                    },
+                    upsert=True
+                )
+
+            memoizer.disconnect()
 
             return ret
 
